@@ -1,14 +1,18 @@
+
 package edu.upc.dsa.services;
 
 
 import edu.upc.dsa.ShopManager;
 import edu.upc.dsa.ShopManagerImpl;
 
+import edu.upc.dsa.exemptions.*;
+import edu.upc.dsa.models.Credentials;
 import edu.upc.dsa.models.Product;
-import io.swagger.annotations.Api;
-import io.swagger.annotations.ApiOperation;
-import io.swagger.annotations.ApiResponse;
-import io.swagger.annotations.ApiResponses;
+import edu.upc.dsa.models.User;
+import edu.upc.dsa.models.UserInformation;
+import io.swagger.annotations.*;
+import javafx.scene.chart.ScatterChart;
+
 
 import javax.ws.rs.*;
 import javax.ws.rs.core.GenericEntity;
@@ -16,8 +20,8 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import java.util.List;
 
-@Api(value = "/tracks", description = "Endpoint to Track Service")
-@Path("/tracks")
+@Api(value = "/", description = "Endpoint to Track Service")
+@Path("/shop")
 public class ShopService {
 
     private ShopManager tm;
@@ -33,70 +37,148 @@ public class ShopService {
 
     }
 
-    @GET
-    @ApiOperation(value = "get all Products", notes = "asdasd")
+    @POST
+    @ApiOperation(value = "create a new User", notes = "Do you want to register to our shop?")
     @ApiResponses(value = {
-            @ApiResponse(code = 201, message = "Successful", response = Object.class, responseContainer="List"),
+            @ApiResponse(code = 201, message = "Successful", response= UserInformation.class),
+            @ApiResponse(code = 409, message = "This user already exists."),
+            @ApiResponse(code = 500, message = "Empty credentials")
+
     })
-    @Path("/")
-    @Produces(MediaType.APPLICATION_JSON)
-    public Response getTracks() {
 
-        List<Product> objects = this.tm.findAll();
+    @Path("/createUser")
+    @Consumes({MediaType.APPLICATION_JSON})
+    public Response newUser(UserInformation newUser){
 
-        GenericEntity<List<Object>> entity = new GenericEntity<List<Product>>(objects) {};
-        return Response.status(201).entity(entity).build()  ;
+        try{
+            this.tm.addUser(newUser.getName(), newUser.getSurname(), newUser.getBirthDate(), newUser.getMail(), newUser.getPassword());
+            return Response.status(201).entity(newUser).build();
+        }
+        catch (EmailAlreadyBeingUsedException E){
+            return Response.status(409).entity(newUser).build();
+        }
+
+
+    }
+    @POST
+    @ApiOperation(value = "Log In to the shop", notes = "Do you want to log in to our shop?")
+    @ApiResponses(value = {
+            @ApiResponse(code = 201, message = "Successful", response= UserInformation.class),
+            @ApiResponse(code = 409, message = "Wrong credentials.")
+
+
+    })
+
+    @Path("/logIn")
+    @Consumes({MediaType.APPLICATION_JSON})
+    public Response logIn(Credentials credentials){
+
+        try{
+            this.tm.LogIn(credentials);
+            return Response.status(201).entity(credentials).build();
+        }
+        catch (IncorrectCredentialsException E){
+            return Response.status(409).entity(credentials).build();
+        }
+
 
     }
 
+
     @GET
-    @ApiOperation(value = "get a Product", notes = "asdasd")
+    @ApiOperation(value = "get a Product", notes = "Choose a product of our shop!")
     @ApiResponses(value = {
             @ApiResponse(code = 201, message = "Successful", response = Object.class),
             @ApiResponse(code = 404, message = "Product not found")
     })
     @Path("/{id}")
     @Produces(MediaType.APPLICATION_JSON)
-    public Response getTrack(@PathParam("id") String id) {
-        Object t = this.tm.getTrack(id);
+    public Response getProduct(@PathParam("id") String id) {
+        Product t = this.tm.getProduct(id);
         if (t == null) return Response.status(404).build();
         else  return Response.status(201).entity(t).build();
     }
 
+    @GET
+    @ApiOperation(value = "get all the Products sorted", notes = "Get the shop list sorted!")
+    @ApiResponses(value = {
+            @ApiResponse(code = 201, message = "Successful", response = Object.class),
+            @ApiResponse(code = 404, message = "Product not found")
+    })
+    @Path("/productsSorted")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response getProductsSorted() {
+        List<Product> productSortedByPrice = this.tm.objectsByPrice();
+        GenericEntity<List<Product>> entity = new GenericEntity<List<Product>>(productSortedByPrice) {};
+        return Response.status(201).entity(entity).build();
+    }
+
+
     @DELETE
-    @ApiOperation(value = "delete a Track", notes = "asdasd")
+    @ApiOperation(value = "delete a Product", notes = "Do you wanna erase a product from the shop?")
     @ApiResponses(value = {
             @ApiResponse(code = 201, message = "Successful"),
-            @ApiResponse(code = 404, message = "Track not found")
+            @ApiResponse(code = 404, message = "Product not found")
     })
     @Path("/{id}")
     public Response deleteTrack(@PathParam("id") String id) {
-        Object t = this.tm.getTrack(id);
+        Object t = this.tm.getProduct(id);
         if (t == null) return Response.status(404).build();
-        else this.tm.deleteObject(id);
+        else this.tm.deleteProduct(id);
         return Response.status(201).build();
+    }
+    @GET
+    @ApiOperation(value = "get a Products bought by an User", notes = "How much have you bougth from us?")
+    @ApiResponses(value = {
+            @ApiResponse(code = 201, message = "Successful", response = Object.class),
+            @ApiResponse(code = 404, message = "Product not found")
+    })
+    @Path("/productsByUser/{id}")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response getProductsByUser(@PathParam("id") String id) {
+        List<Product> productsBoughtByUser = this.tm.productsBoughtByTheUser(id);
+        GenericEntity<List<Product>> entity = new GenericEntity<List<Product>>(productsBoughtByUser) {};
+        return Response.status(201).entity(entity).build();
     }
 
     @PUT
-    @ApiOperation(value = "update a Track", notes = "asdasd")
+    @ApiOperation(value = "update a Product", notes = "Do you want to update a product?")
     @ApiResponses(value = {
             @ApiResponse(code = 201, message = "Successful"),
             @ApiResponse(code = 404, message = "Track not found")
     })
     @Path("/")
-    public Response updateTrack(Object object) {
+    public Response updateProduct(Product product) {
 
-        Object t = this.tm.updateObject(object);
-
+        Product t = this.tm.updateProduct(product);
         if (t == null) return Response.status(404).build();
-
         return Response.status(201).build();
+    }
+
+    @POST
+    @ApiOperation(value = "Purchase a product", notes = "Do you want to update a product?")
+    @ApiResponses(value = {
+            @ApiResponse(code = 201, message = "Successful"),
+            @ApiResponse(code = 404, message = "Track not found")
+    })
+    @Path("/PurchaseOfProduct/{idUser}/{idProduct}")
+    public Response productBoughtByUser(@PathParam("idUser") String idUser, @PathParam("idProduct") String idProduct) {
+        try{
+            this.tm.productBought(idUser,idProduct);
+            return Response.status(201).build();
+        }
+        catch(UserDoesNotExistException | UserHasNotMoneyException | ProductDoesNotExistException e ){
+            return Response.status(409).entity(idUser).build();
+        }
+
     }
 
 
 
+
+
     @POST
-    @ApiOperation(value = "create a new Track", notes = "asdasd")
+    @ApiOperation(value = "add a new Product", notes = "Do you want to contribute with a product to our shop?")
     @ApiResponses(value = {
             @ApiResponse(code = 201, message = "Successful", response= Object.class),
             @ApiResponse(code = 500, message = "Validation Error")
@@ -105,12 +187,16 @@ public class ShopService {
 
     @Path("/")
     @Consumes(MediaType.APPLICATION_JSON)
-    public Response newTrack(Object object) {
+    public Response newProduct(Product newProduct) {
 
-        if (object.getSinger()==null || object.getTitle()==null)  return Response.status(500).entity(object).build();
-        this.tm.createObject(object);
-        return Response.status(201).entity(object).build();
+        if (newProduct.getName()==null || newProduct.getDescription()==null)
+            return Response.status(500).entity(newProduct).build();
+        this.tm.addProduct(newProduct.getName(), newProduct.getDescription(), newProduct.getPrice());
+        return Response.status(201).entity(newProduct).build();
+
     }
 
+
+
 }
-*/
+
