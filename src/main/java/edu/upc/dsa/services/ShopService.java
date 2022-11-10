@@ -6,10 +6,7 @@ import edu.upc.dsa.ShopManager;
 import edu.upc.dsa.ShopManagerImpl;
 
 import edu.upc.dsa.exemptions.*;
-import edu.upc.dsa.models.Credentials;
-import edu.upc.dsa.models.Product;
-import edu.upc.dsa.models.User;
-import edu.upc.dsa.models.UserInformation;
+import edu.upc.dsa.models.*;
 import io.swagger.annotations.*;
 import javafx.scene.chart.ScatterChart;
 
@@ -26,17 +23,18 @@ public class ShopService {
 
     private ShopManager tm;
 
-    public ShopService() {
+    public ShopService() throws EmailAlreadyBeingUsedException {
         this.tm = ShopManagerImpl.getInstance();
         if (tm.size()==0) {
             this.tm.addProduct("Shirt", "Green shirt", 74.1);
             this.tm.addProduct("Trousers", "Green trousers", 54.2);
             this.tm.addProduct("Shoes", "Nice Shoes", 21.5);
+            this.tm.addUser("Alba","Roma", "23112001","albaroma@gmail.com","123456");
+            this.tm.addUser("Maria","Ubiergo", "02112001","meri@gmail.com","123456");
+            this.tm.addUser("Guillem","Purti", "02112001","guille@gmail.com","123456");
+
         }
-
-
     }
-
     @POST
     @ApiOperation(value = "create a new User", notes = "Do you want to register to our shop?")
     @ApiResponses(value = {
@@ -68,7 +66,6 @@ public class ShopService {
 
 
     })
-
     @Path("/logIn")
     @Consumes({MediaType.APPLICATION_JSON})
     public Response logIn(Credentials credentials){
@@ -80,11 +77,7 @@ public class ShopService {
         catch (IncorrectCredentialsException E){
             return Response.status(409).entity(credentials).build();
         }
-
-
     }
-
-
     @GET
     @ApiOperation(value = "get a Product", notes = "Choose a product of our shop!")
     @ApiResponses(value = {
@@ -112,6 +105,24 @@ public class ShopService {
         GenericEntity<List<Product>> entity = new GenericEntity<List<Product>>(productSortedByPrice) {};
         return Response.status(201).entity(entity).build();
     }
+    @GET
+    @ApiOperation(value = "get all the Users sorted", notes = "Get the users list sorted!")
+    @ApiResponses(value = {
+            @ApiResponse(code = 201, message = "Successful", response = Object.class),
+            @ApiResponse(code = 404, message = "Product not found")
+    })
+    @Path("/UsersSorted")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response getUsersSorted() {
+        List<User> usersSorted = this.tm.userByAlfabet();
+        if(usersSorted==null){
+            return Response.status(404).entity(usersSorted).build();
+        }
+        List<UsersWithoutPassword> usersWithoutPassword= this.tm.DisplayingUsersInfo(usersSorted);
+        GenericEntity<List<UsersWithoutPassword>> entity = new GenericEntity<List<UsersWithoutPassword>>(usersWithoutPassword) {};
+        return Response.status(201).entity(entity).build();
+    }
+
 
 
     @DELETE
@@ -155,11 +166,12 @@ public class ShopService {
         return Response.status(201).build();
     }
 
-    @POST
+    @PUT
     @ApiOperation(value = "Purchase a product", notes = "Do you want to update a product?")
     @ApiResponses(value = {
             @ApiResponse(code = 201, message = "Successful"),
-            @ApiResponse(code = 404, message = "Track not found")
+            @ApiResponse(code = 403, message = "Not enough money"),
+            @ApiResponse(code = 404, message = "Not found any object or user with that id"),
     })
     @Path("/PurchaseOfProduct/{idUser}/{idProduct}")
     public Response productBoughtByUser(@PathParam("idUser") String idUser, @PathParam("idProduct") String idProduct) {
@@ -167,15 +179,14 @@ public class ShopService {
             this.tm.productBought(idUser,idProduct);
             return Response.status(201).build();
         }
-        catch(UserDoesNotExistException | UserHasNotMoneyException | ProductDoesNotExistException e ){
-            return Response.status(409).entity(idUser).build();
+        catch(UserHasNotMoneyException e){
+            return Response.status(403).entity(idUser).build();
+        }
+        catch(UserDoesNotExistException | ProductDoesNotExistException e ){
+            return Response.status(404).entity(idUser).build();
         }
 
     }
-
-
-
-
 
     @POST
     @ApiOperation(value = "add a new Product", notes = "Do you want to contribute with a product to our shop?")
